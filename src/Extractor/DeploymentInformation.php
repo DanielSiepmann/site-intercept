@@ -18,21 +18,6 @@ use RuntimeException;
  */
 class DeploymentInformation
 {
-    private static array $typeMap = [
-        'typo3-cms-documentation' => ['m' => 'manual'],
-        'typo3-cms-framework' => ['c' => 'core-extension'],
-        'typo3-cms-extension' => ['p' => 'extension'],
-        // There is a third one 'h' => 'docs-home', handled below.
-        // There is a fourth one 'other' => 'other', handled below.
-    ];
-
-    private static array $packageTypeExceptionMap = [
-        'typo3/docs-homepage' => ['h' => 'docs-home'],
-        'typo3/view-helper-reference' => ['other' => 'other'],
-        'typo3/surf' => ['other' => 'other'],
-        'typo3/tailor' => ['other' => 'other'],
-    ];
-
     /**
      * @var string Package vendor, eg. "georgringer"
      */
@@ -114,6 +99,8 @@ class DeploymentInformation
      * @param string $composerPackageName
      * @param string $composerPackageType
      * @param string $extensionKey
+     * @param string $typeLong
+     * @param string $typeShort
      * @param string $repositoryUrl
      * @param string $publicComposerJsonUrl
      * @param string $version
@@ -128,6 +115,8 @@ class DeploymentInformation
         string $composerPackageName,
         string $composerPackageType,
         string $extensionKey,
+        string $typeLong,
+        string $typeShort,
         string $repositoryUrl,
         string $publicComposerJsonUrl,
         string $version,
@@ -140,13 +129,12 @@ class DeploymentInformation
         $this->publicComposerJsonUrl = $publicComposerJsonUrl;
         $this->packageType = $composerPackageType;
         $packageName = $this->determinePackageName($composerPackageName);
-        $packageType = $this->determinePackageType($composerPackageType, $composerPackageName);
         $this->extensionKey = $extensionKey;
         $this->vendor = key($packageName);
         $this->name = current($packageName);
         $this->packageName = $this->vendor . '/' . $this->name;
-        $this->typeLong = current($packageType);
-        $this->typeShort = key($packageType);
+        $this->typeLong = $typeLong;
+        $this->typeShort = $typeShort;
         $this->sourceBranch = $version;
         $this->targetBranchDirectory = $this->getTargetBranchDirectory($this->sourceBranch, $this->typeLong);
         $this->minimumTypoVersion = $minimumTypoVersion;
@@ -234,29 +222,6 @@ class DeploymentInformation
 
         // docs-home has only master branch, this is returned above already, safe to not handle this here.
         throw new RuntimeException('Unknown package type ' . $type);
-    }
-
-    /**
-     * @param string $packageType
-     * @param string $packageName
-     * @throws ComposerJsonInvalidException
-     * @return array
-     */
-    private function determinePackageType(string $packageType, string $packageName): array
-    {
-        if (array_key_exists($packageName, self::$packageTypeExceptionMap)) {
-            return self::$packageTypeExceptionMap[$packageName];
-        }
-
-        if ($packageType === '') {
-            throw new ComposerJsonInvalidException('composer.json \'type\' must be given', 1558019479);
-        }
-
-        if (!array_key_exists($packageType, self::$typeMap)) {
-            throw new ComposerJsonInvalidException('composer.json \'type\' must be set to one of ' . implode(', ', array_keys(self::$typeMap)) . ', ' . $packageType . ' given', 1557490474);
-        }
-
-        return self::$typeMap[$packageType];
     }
 
     /**

@@ -19,6 +19,7 @@ use App\Exception\ComposerJsonNotFoundException;
 use App\Exception\DocsPackageDoNotCareBranch;
 use App\Exception\DocsPackageRegisteredWithDifferentRepositoryException;
 use App\Extractor\BambooBuildTriggered;
+use App\Extractor\ComposerJson;
 use App\Extractor\DeploymentInformation;
 use App\Repository\DocumentationJarRepository;
 use App\Utility\RepositoryUrlUtility;
@@ -261,5 +262,93 @@ class DocumentationService
     {
         $deploymentInformation = $this->documentationBuildInformationService->generateBuildInformationFromDocumentationJar($doc);
         return $this->githubService->triggerDocumentationPlan($deploymentInformation);
+    }
+
+    /**
+     * @param ComposerJson $composerjson
+     * @return bool
+     */
+    public function hasNecessaryComposerDependencies(ComposerJson $composerjson): bool
+    {
+        $packagesWithoutDependency = [
+            'typo3/cms',
+            'typo3/cms-core',
+            'typo3/surf',
+            'typo3/tailor',
+        ];
+
+        return $composerJson->getCoreRequirement() !== null
+            || in_array($composerJson->getName(), $packagesWithoutDependency, true)
+            ;
+    }
+
+    public function getType(string $packageType, string $packageName): string
+    {
+        $knownOtherPackages = [
+            'typo3/surf',
+            'typo3/tailor',
+        ];
+
+        if (in_array($packageName, $knownOtherPackages)) {
+            return 'other';
+        }
+
+        return $packageType;
+    }
+
+    public function getTypeLong(string $packageType, string $packageName): string
+    {
+        $type = $this->determinePackageType(
+            $this->getType($packageType),
+            $packageName
+        );
+
+        return key($type);
+    }
+
+    public function getTypeShort(string $packageType, string $packageName): string
+    {
+        $type = $this->determinePackageType(
+            $this->getType($packageType),
+            $packageName
+        );
+
+        return current($type);
+    }
+
+    /**
+     * @param string $packageType
+     * @param string $packageName
+     * @throws ComposerJsonInvalidException
+     * @return array
+     */
+    private function determinePackageType(string $packageType, string $packageName): array
+    {
+        if ($packageType === 'other') {
+            return ['other' => 'other'];
+        }
+
+        $typeMap = [
+            'typo3-cms-documentation' => ['m' => 'manual'],
+            'typo3-cms-framework' => ['c' => 'core-extension'],
+            'typo3-cms-extension' => ['p' => 'extension'],
+        ];
+        $packageTypeExceptionMap = [
+            'typo3/docs-homepage' => ['h' => 'docs-home'],
+        ];
+
+        if (array_key_exists($packageName, $packageTypeExceptionMap)) {
+            return $packageTypeExceptionMap[$packageName];
+        }
+
+        if ($packageType === '') {
+            throw new ComposerJsonInvalidException('composer.json \'type\' must be given', 1558019479);
+        }
+
+        if (!array_key_exists($packageType, $typeMap)) {
+            throw new ComposerJsonInvalidException('composer.json \'type\' must be set to one of ' . implode(', ', array_keys(self::$typeMap)) . ', ' . $packageType . ' given', 1557490474);
+        }
+
+        return $typeMap[$packageType];
     }
 }

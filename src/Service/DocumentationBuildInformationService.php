@@ -55,6 +55,8 @@ class DocumentationBuildInformationService
 
     private SlackService $slackService;
 
+    private DocumentationService $documentationService;
+
     /**
      * Constructor
      *
@@ -64,6 +66,7 @@ class DocumentationBuildInformationService
      * @param Filesystem $fileSystem
      * @param GeneralClient $client
      * @param SlackService $slackService
+     * @param DocumentationService $documentationService
      */
     public function __construct(
         string $privateDir,
@@ -71,7 +74,8 @@ class DocumentationBuildInformationService
         EntityManagerInterface $entityManager,
         Filesystem $fileSystem,
         GeneralClient $client,
-        SlackService $slackService
+        SlackService $slackService,
+        DocumentationService $documentationService
     ) {
         $this->privateDir = $privateDir;
         $this->subDir = $subDir;
@@ -80,6 +84,7 @@ class DocumentationBuildInformationService
         $this->documentationJarRepository = $this->entityManager->getRepository(DocumentationJar::class);
         $this->client = $client;
         $this->slackService = $slackService;
+        $this->documentationService = $documentationService;
     }
 
     /**
@@ -133,10 +138,13 @@ class DocumentationBuildInformationService
     public function generateBuildInformation(PushEvent $pushEvent, ComposerJson $composerJson): DeploymentInformation
     {
         $this->assertComposerJsonContainsNecessaryData($composerJson);
+
         return new DeploymentInformation(
             $composerJson->getName(),
-            $composerJson->getType(),
+            $this->documentationService->getType($composerJson->getType(), $composerJson->getName()),
             $composerJson->getExtensionKey(),
+            $this->documentationService->getTypeLong($composerJson->getType(), $composerJson->getName()),
+            $this->documentationService->getTypeShort($composerJson->getType(), $composerJson->getName()),
             $pushEvent->getRepositoryUrl(),
             $pushEvent->getUrlToComposerFile(),
             $pushEvent->getVersionString(),
@@ -160,8 +168,10 @@ class DocumentationBuildInformationService
     {
         return new DeploymentInformation(
             $documentationJar->getPackageName(),
-            $documentationJar->getPackageType(),
+            $this->documentationService->getType($documentationJar->getPackageType(), $documentationJar->getName()),
             $documentationJar->getExtensionKey() ?? '',
+            $this->documentationService->getTypeLong($documentationJar->getPackageType(), $documentationJar->getName()),
+            $this->documentationService->getTypeShort($documentationJar->getPackageType(), $documentationJar->getName()),
             $documentationJar->getRepositoryUrl(),
             $documentationJar->getPublicComposerJsonUrl(),
             $documentationJar->getBranch(),
@@ -353,7 +363,7 @@ class DocumentationBuildInformationService
      */
     public function assertComposerJsonContainsNecessaryData(ComposerJson $composerJson): void
     {
-        if ($composerJson->getCoreRequirement() === null && !in_array($composerJson->getName(), ['typo3/cms', 'typo3/cms-core', 'typo3/surf'], true)) {
+        if ($this->documentationService->hasNecessaryComposerDependencies($composerJson) === false) {
             throw new DocsComposerDependencyException('Dependency typo3/cms-core is missing', 1557310527);
         }
     }
